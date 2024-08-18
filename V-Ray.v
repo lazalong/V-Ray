@@ -4,9 +4,6 @@ import runtime
 import time
 import math
 
-//const pwidth = 800 // aka image_width
-//const pheight = 600 // aka image_height
-
 const chunk_height = 10 // the image is recalculated in chunks, each chunk processed in a separate thread
 
 const zoom_factor = 1.1
@@ -35,23 +32,13 @@ mut:
 	iidx    int
 	pixels  &u32     = unsafe { nil } //= unsafe { vcalloc(pwidth * pheight * sizeof(u32)) }
 	npixels &u32     = unsafe { nil } //= unsafe { vcalloc(pwidth * pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
-	view    ViewRect = ViewRect{-3.0773593290970673, 1.4952456603855397, -2.019938598189011, 2.3106642054225945}
+	view    ViewRect = ViewRect{-100.0, 100.0, -100.0, 100.0}
 	scale   int      = 1
 	ntasks  int      = runtime.nr_jobs()
 
-	aspect_ratio f32 = 16.0 / 9.0
-	pwidth  int      = 800 // aka image_width
-	pheight int  	  = int(800.0 * 9.0 / 16.0)
-
-	viewport_height f32 	= 2.0
-	viewport_width f32  	= 2.0 * 16.0 / 9.0
-
-	camera_center Vec3	= Vec3{0,0,0}
-	pixel00_loc Vec3 		= Vec3{0,0,0}
-	pixel_delta_u Vec3 	= Vec3{0,0,0}
-	pixel_delta_v Vec3 	= Vec3{0,0,0}
-
 	world HitableList  = HitableList{}
+
+	camera Camera = Camera{}
 }
 
 const colors = [gx.black, gx.blue, gx.red, gx.green, gx.yellow, gx.orange, gx.purple, gx.white,
@@ -66,18 +53,16 @@ struct ImageChunk {
 //------------------------------------------------------
 
 fn main() {
+
+	// Camera
+	camera := new_camera(16.0 / 9.0, 800)
+
+	// State
 	mut state := &AppState{}
+	state.camera = camera
 
-	// Set image width and height depending on the desired aspect ratio
-	state.pwidth = 800
-	state.pheight = int(state.pwidth / state.aspect_ratio)
-	if state.pheight < 1 { state.pheight = 1 }
-
-	// Recalculate as the actual ratio for the 'image' may be different from the viewport (aspect_ratio)
-	state.viewport_width = state.viewport_height * (f32(state.pwidth)/state.pheight)
-
-	state.pixels     	= unsafe { vcalloc(state.pwidth * state.pheight * sizeof(u32)) }
-	state.npixels     = unsafe { vcalloc(state.pwidth * state.pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
+	state.pixels     	= unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) }
+	state.npixels     = unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
 
 	// World
 	mut list := []Hitable{}
@@ -85,25 +70,9 @@ fn main() {
 	list << &Sphere{Vec3{0,-100.5,-1}, 100}
 	state.world.list = list
 
-	// Camera
-	focal_length := f32(1.0)
-	state.camera_center = Vec3{0.0,0.0,0.0}
-
-	// Calculate the vectors across the hoirzontal and down the vertical viewport edges
-	viewport_u := Vec3{state.viewport_width, 0, 0}
-	viewport_v := Vec3{0, -state.viewport_height, 0}
-
-	// Calculate the horizontal and vertical delta vectors from pixel to pixel
-	state.pixel_delta_u = viewport_u.div(state.pwidth)
-	state.pixel_delta_v = viewport_v.div(state.pheight)
-
-	// Calculate the location of the upper left pixel
-	viewport_upper_left := state.camera_center - Vec3{0.0, 0.0, focal_length} - viewport_u.div(2) - viewport_v.div(2)
-	state.pixel00_loc = viewport_upper_left + (state.pixel_delta_u + state.pixel_delta_v).mul(0.5)
-
 	state.gg = gg.new_context(
 		width:         800 // TODO 
-		height:        int(800 / state.aspect_ratio) // TODO configurable
+		height:        int(800 / state.camera.aspect_ratio) // TODO configurable
 		create_window: true
 		window_title:  'V-Ray'
 		init_fn:       graphics_init
@@ -159,7 +128,7 @@ fn (mut state AppState) update() {
 
 		// schedule chunks, describing the work:
 		mut nchunks := 0
-		for start := 0; start < state.pheight; start += chunk_height {
+		for start := 0; start < state.camera.pheight; start += chunk_height {
 			chunk_channel <- ImageChunk{
 				cview: cview
 				ymin:  start
@@ -214,10 +183,10 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 	for {
 		chunk := <- input or { break }
 		
-		for py := chunk.ymin; py < chunk.ymax && py < state.pheight; py++ {
-			yrow := unsafe { &state.npixels[int(py * state.pwidth)]} // get the row to work on
+		for py := chunk.ymin; py < chunk.ymax && py < state.camera.pheight; py++ {
+			yrow := unsafe { &state.npixels[int(py * state.camera.pwidth)]} // get the row to work on
 
-			for px := 0; px < state.pwidth; px++ {
+			for px := 0; px < state.camera.pwidth; px++ {
 
 				unsafe {
 					// To color by chunks
@@ -228,15 +197,17 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 					//g := f32(py) * 256.0 /(state.pheight -1)
 					//yrow[px] = u32(gx.rgb(u8(r),u8(g),0).abgr8())
 
-					pixel_center := state.pixel00_loc + state.pixel_delta_u.mul(f32(px)) + state.pixel_delta_v.mul(f32(py))
-					ray_direction := pixel_center - state.camera_center
+					// TODO : put in Camera??
+					pixel_center := state.camera.pixel00_loc + 
+						state.camera.pixel_delta_u.mul(f32(px)) + state.camera.pixel_delta_v.mul(f32(py))
+					ray_direction := pixel_center - state.camera.center
 					r := Ray {
-						ori: state.camera_center
+						ori: state.camera.center
 						dir: ray_direction
 						}
 
-//					yrow[px] = ray_color(r)
-					yrow[px] = ray_color(r, state.world)
+					// Get the color of the ray
+					yrow[px] = state.camera.ray_color(r, state.world)
 				}
 			}
 		}		
@@ -244,45 +215,7 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 	}
 }
 
-fn ray_color(r Ray, world HitableList) u32 {
-	mut hit := new_hit_record()
-	if world.hit(r, 0, 999999999, mut hit) {
-
-		return u32(gx.rgb(
-			u8(255.0*(hit.normal.e0 + 1) * 0.5),
-			u8(255.0*(hit.normal.e1 + 1) * 0.5),
-			u8(255.0*(hit.normal.e2 + 1) * 0.5),
-		).abgr8())
-	}
-
-	unit_direction := r.dir.unit_vector()
-	a := 0.5 * (unit_direction.y() + 1.0)
-	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
-	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
-	return u32(a1.abgr8())
-//	return u32(gx.rgb(50,60,0).abgr8())
-}
-/*
-fn ray_color(r Ray) u32 {
-	t := hit_shpere(Point3{0,0,-1}, 0.5, r)
-	if t > 0.0 {
-		n := (r.at(t) - Vec3{0,0,-1}).unit_vector()
-		
-		return u32(gx.rgb(
-			u8(255.0*(n.e0 + 1) * 0.5),
-			u8(255.0*(n.e1 + 1) * 0.5),
-			u8(255.0*(n.e2 + 1) * 0.5),
-		).abgr8())
-	}
-
-	unit_direction := r.dir.unit_vector()
-	a := 0.5 * (unit_direction.y() + 1.0)
-	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
-	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
-	return u32(a1.abgr8())
-//	return u32(gx.rgb(50,60,0).abgr8())
-}
-*/
+// TODO: Remove?
 fn hit_shpere(center Point3, radius f32, r Ray) f32 {
 	oc := center - r.ori
 	a := r.dir.length_squared()
@@ -321,10 +254,8 @@ fn (mut state AppState) center(s_x f64, s_y f64) {
 */
 }
 
-// gg callbacks:
-
 fn graphics_init(mut state AppState) {
-	state.iidx = state.gg.new_streaming_image(state.pwidth, state.pheight, 4, pixel_format: .rgba8) // 4 = nb channels  TODO: try .rgba16f .rgba32ui .rgba32f
+	state.iidx = state.gg.new_streaming_image(state.camera.pwidth, state.camera.pheight, 4, pixel_format: .rgba8) // 4 = nb channels  TODO: try .rgba16f .rgba32ui .rgba32f
 }
 
 fn graphics_frame(mut state AppState) {
