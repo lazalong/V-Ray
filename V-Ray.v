@@ -2,6 +2,7 @@ import gg
 import gx
 import runtime
 import time
+import math
 
 //const pwidth = 800 // aka image_width
 //const pheight = 600 // aka image_height
@@ -40,10 +41,10 @@ mut:
 
 	aspect_ratio f32 = 16.0 / 9.0
 	pwidth  int      = 800 // aka image_width
-	pheight int  	  = 400
+	pheight int  	  = int(800.0 * 9.0 / 16.0)
 
 	viewport_height f32 	= 2.0
-	viewport_width f32  	= 2.0 * (800.0 / 400.0)
+	viewport_width f32  	= 2.0 * 16.0 / 9.0
 
 	camera_center Vec3	= Vec3{0,0,0}
 	pixel00_loc Vec3 		= Vec3{0,0,0}
@@ -93,8 +94,8 @@ fn main() {
 	state.pixel00_loc = viewport_upper_left + (state.pixel_delta_u + state.pixel_delta_v).mul(0.5)
 
 	state.gg = gg.new_context(
-		width:         800
-		height:        600
+		width:         800 // TODO 
+		height:        int(800 / state.aspect_ratio) // TODO configurable
 		create_window: true
 		window_title:  'V-Ray'
 		init_fn:       graphics_init
@@ -236,12 +237,37 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 }
 
 fn ray_color(r Ray) u32 {
+	t := hit_shpere(Point3{0,0,-1}, 0.5, r)
+	if t > 0.0 {
+		n := (r.at(t) - Vec3{0,0,-1}).unit_vector()
+		
+		return u32(gx.rgb(
+			u8(255.0*(n.e0 + 1) * 0.5),
+			u8(255.0*(n.e1 + 1) * 0.5),
+			u8(255.0*(n.e2 + 1) * 0.5),
+		).abgr8())
+	}
+
 	unit_direction := r.dir.unit_vector()
 	a := 0.5 * (unit_direction.y() + 1.0)
 	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
 	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
 	return u32(a1.abgr8())
 //	return u32(gx.rgb(50,60,0).abgr8())
+}
+
+fn hit_shpere(center Point3, radius f32, r Ray) f32 {
+	oc := center - r.ori
+	a := r.dir.dot(r.dir)
+	b := -2.0 * r.dir.dot(oc)
+	c := oc.dot(oc) - (radius*radius)
+	discriminant := b*b - 4*a*c
+
+	if discriminant < 0 {
+		return -1.0
+	} else {
+		return (-b - math.sqrtf(discriminant)) / (2.0 * a)
+	}
 }
 
 fn (mut state AppState) zoom(zoom_factor f64) {
