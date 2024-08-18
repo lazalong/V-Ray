@@ -50,6 +50,8 @@ mut:
 	pixel00_loc Vec3 		= Vec3{0,0,0}
 	pixel_delta_u Vec3 	= Vec3{0,0,0}
 	pixel_delta_v Vec3 	= Vec3{0,0,0}
+
+	world HitableList  = HitableList{}
 }
 
 const colors = [gx.black, gx.blue, gx.red, gx.green, gx.yellow, gx.orange, gx.purple, gx.white,
@@ -76,6 +78,12 @@ fn main() {
 
 	state.pixels     	= unsafe { vcalloc(state.pwidth * state.pheight * sizeof(u32)) }
 	state.npixels     = unsafe { vcalloc(state.pwidth * state.pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
+
+	// World
+	mut list := []Hitable{}
+	list << &Sphere{Vec3{0,0,-1}, 0.5}
+	list << &Sphere{Vec3{0,-100.5,-1}, 100}
+	state.world.list = list
 
 	// Camera
 	focal_length := f32(1.0)
@@ -227,15 +235,34 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 						dir: ray_direction
 						}
 
-					yrow[px] = ray_color(r)
+//					yrow[px] = ray_color(r)
+					yrow[px] = ray_color(r, state.world)
 				}
 			}
-
 		}		
 		ready <- true
 	}
 }
 
+fn ray_color(r Ray, world HitableList) u32 {
+	mut hit := new_hit_record()
+	if world.hit(r, 0, 999999999, mut hit) {
+
+		return u32(gx.rgb(
+			u8(255.0*(hit.normal.e0 + 1) * 0.5),
+			u8(255.0*(hit.normal.e1 + 1) * 0.5),
+			u8(255.0*(hit.normal.e2 + 1) * 0.5),
+		).abgr8())
+	}
+
+	unit_direction := r.dir.unit_vector()
+	a := 0.5 * (unit_direction.y() + 1.0)
+	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
+	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
+	return u32(a1.abgr8())
+//	return u32(gx.rgb(50,60,0).abgr8())
+}
+/*
 fn ray_color(r Ray) u32 {
 	t := hit_shpere(Point3{0,0,-1}, 0.5, r)
 	if t > 0.0 {
@@ -255,18 +282,19 @@ fn ray_color(r Ray) u32 {
 	return u32(a1.abgr8())
 //	return u32(gx.rgb(50,60,0).abgr8())
 }
-
+*/
 fn hit_shpere(center Point3, radius f32, r Ray) f32 {
 	oc := center - r.ori
-	a := r.dir.dot(r.dir)
-	b := -2.0 * r.dir.dot(oc)
-	c := oc.dot(oc) - (radius*radius)
-	discriminant := b*b - 4*a*c
+	a := r.dir.length_squared()
+	h := r.dir.dot(oc)
+	c := oc.length_squared() - radius*radius
+
+	discriminant := h*h - a*c
 
 	if discriminant < 0 {
 		return -1.0
 	} else {
-		return (-b - math.sqrtf(discriminant)) / (2.0 * a)
+		return (h - math.sqrtf(discriminant)) / a
 	}
 }
 
