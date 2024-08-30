@@ -1,4 +1,5 @@
 import math
+import rand
 
 struct Vec3 {
 mut:
@@ -70,4 +71,45 @@ fn (v1 Vec3) cross(v2 Vec3) Vec3 {
 
 fn (v Vec3) unit_vector() Vec3 {
 	return v.div(v.length())
+}
+
+// [0,1]
+fn random_vec3() Vec3 {
+	return Vec3{rand.f32(), rand.f32(), rand.f32()}
+}
+
+// [min,max]
+fn random_vec3_min_max(min f32, max f32) Vec3 {
+	return Vec3{rand_min_max(min, max), rand_min_max(min, max), rand_min_max(min, max)}
+}
+
+fn random_in_unit_sphere() Vec3 {
+	mut v := Vec3{}
+	for {
+		v = random_vec3_min_max(-1,1)
+		if v.length_squared() < 1.0 {
+			break
+		}
+	}
+	return v
+}
+
+fn random_unit_vector() Vec3 {
+	return random_in_unit_sphere().unit_vector()
+}
+
+// Return a vector in the same hemishpere as the normal
+fn random_on_hemisphere(normal Vec3) Vec3 {
+	mut on_unit_sphere := random_unit_vector()
+	if on_unit_sphere.dot(normal) > 0.0 { 
+		// In same hemishpere as normal
+		return on_unit_sphere
+	} else {
+		return on_unit_sphere.mul(-1.0) // invert
+	}
+}
+
+// Returns a Vec3 to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
+fn sample_square() Vec3 {
+	return Vec3{rand_min_max(-0.5, 0.5), rand_min_max(-0.5, 0.5), 0}
 }

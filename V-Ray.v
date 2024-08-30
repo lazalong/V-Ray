@@ -10,6 +10,10 @@ const zoom_factor = 1.1
 
 const max_iterations = 255
 
+const samples_per_pixel = 10 // count of random samples for each pixel
+
+const shadow_acne_problem = 0.0001
+
 struct ViewRect {
 mut:
 	x_min f64
@@ -55,7 +59,7 @@ struct ImageChunk {
 fn main() {
 
 	// Camera
-	camera := new_camera(16.0 / 9.0, 800)
+	camera := new_camera(16.0 / 9.0, 800, 10.0)
 
 	// State
 	mut state := &AppState{}
@@ -198,7 +202,7 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 					//yrow[px] = u32(gx.rgb(u8(r),u8(g),0).abgr8())
 
 					// TODO : put in Camera??
-					pixel_center := state.camera.pixel00_loc + 
+		/*			pixel_center := state.camera.pixel00_loc + 
 						state.camera.pixel_delta_u.mul(f32(px)) + state.camera.pixel_delta_v.mul(f32(py))
 					ray_direction := pixel_center - state.camera.center
 					r := Ray {
@@ -207,7 +211,10 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 						}
 
 					// Get the color of the ray
-					yrow[px] = state.camera.ray_color(r, state.world)
+					yrow[px] = u32(state.camera.ray_color(r, state.world).abgr8())
+				*/
+//					yrow[px] = state.camera.render_pixel(px, f32(py), state.world)
+					yrow[px] = state.camera.render_pixel_antialiased(px, f32(py), state.world)
 				}
 			}
 		}		
