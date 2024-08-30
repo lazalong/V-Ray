@@ -6,6 +6,7 @@ pub mut:
 	aspect_ratio f32        = 16.0 / 9.0   // Ratio of image width over height
 	pwidth  int             = 800          // Rendered image width in pixel count
 	samples_per_pixel f32   = 10           // Count of random samples for each pixel
+	max_depth int           = 10           // Maximum nb of ray bounces into scene
 mut:
 	pheight int             = int(800.0 * 9.0 / 16.0)
 	center Vec3             = Vec3{0,0,0}
@@ -15,7 +16,8 @@ mut:
 	pixel_samples_scale f32 = f32(1.0 / samples_per_pixel)
 }
 
-fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32) Camera {
+fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
+	max_depth int) Camera {
 
 	mut pheight := int(pwidth / aspect_ratio)
 	if pheight < 1 {
@@ -45,6 +47,7 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32) Camera {
 		aspect_ratio,
 		pwidth,
 		samples_per_pixel,
+		max_depth,
 		pheight,
 		center,
 		pixel00_loc,
@@ -56,25 +59,32 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32) Camera {
 
 // Use .abgr8() to get the u32 color
 // TODO Return a Vec3/Color and only convert into gx.rgb at last moment
-fn (c Camera) ray_color(r Ray, world HitableList) gx.Color {
+fn (c Camera) ray_color(r Ray, world HitableList, depth int) gx.Color {
+	// Exceeding ray bounce limit, no more light is gathered
+	if depth <= 0 {
+		return gx.rgb(0,0,0)
+	}
+
 	mut hit := new_hit_record()
 	if world.hit(r, shadow_acne_problem, math.max_f32, mut hit) {
-/*
-		direction := random_on_hemisphere(hit.normal)
-		mut rc := c.ray_color(Ray{hit.p, direction}, world)
-		// TODO: Better way to divide a rgb by 2 ??
-		rc.r -= rc.r / 2
-		rc.g -= rc.g / 2
-		rc.b -= rc.b / 2
-		return rc
-*/
 
+		/*
+		// Returns simply a color depending on the normal
 		return gx.rgb(
 			u8(255.0*(hit.normal.e0 + 1) * 0.5),
 			u8(255.0*(hit.normal.e1 + 1) * 0.5),
 			u8(255.0*(hit.normal.e2 + 1) * 0.5),
 		)
+		*/
 
+		// Returns a gray diffuse sphere (ch. 9.1)
+		direction := random_on_hemisphere(hit.normal)
+		mut rc := c.ray_color(Ray{hit.p, direction}, world, depth - 1)
+		// TODO: Better way to divide a rgb by 2 ??
+		rc.r -= rc.r / 2
+		rc.g -= rc.g / 2
+		rc.b -= rc.b / 2
+		return rc
 	}
 
 	unit_direction := r.dir.unit_vector()
@@ -82,7 +92,7 @@ fn (c Camera) ray_color(r Ray, world HitableList) gx.Color {
 	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
 	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
 	return a1
-//	return gx.rgb(50,60,0).abgr8())
+//	return gx.rgb(50,60,0)
 }
 
 fn (c Camera) render_pixel(px f32, py f32, world HitableList) u32 {
@@ -95,7 +105,7 @@ fn (c Camera) render_pixel(px f32, py f32, world HitableList) u32 {
 	}
 
 	// Get the color of the ray
-   return u32(c.ray_color(r, world).abgr8())
+   return u32(c.ray_color(r, world, c.max_depth).abgr8())
 }
 
 fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
@@ -112,7 +122,7 @@ fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
 			dir: ray_direction
 		}
 		
-		rc := c.ray_color(r, world)
+		rc := c.ray_color(r, world, c.max_depth)
 		color.e0 = color.x() + f32(rc.r)
 		color.e1 = color.y() + f32(rc.g)
 		color.e2 = color.z() + f32(rc.b)
