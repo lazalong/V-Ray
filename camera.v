@@ -78,7 +78,11 @@ fn (c Camera) ray_color(r Ray, world HitableList, depth int) gx.Color {
 		*/
 
 		// Returns a gray diffuse sphere (ch. 9.1)
-		direction := random_on_hemisphere(hit.normal)
+		// Simple scattering
+		// direction := random_on_hemisphere(hit.normal)
+		// Lambertian Reflection
+		direction := hit.normal + random_unit_vector()
+
 		mut rc := c.ray_color(Ray{hit.p, direction}, world, depth - 1)
 		// TODO: Better way to divide a rgb by 2 ??
 		rc.r -= rc.r / 2
