@@ -79,15 +79,26 @@ fn (c Camera) ray_color(r Ray, world HitableList, depth int) Color {
 		)
 		*/
 
+		/*
 		// Returns a gray diffuse sphere (ch. 9.1)
 		// Simple scattering
 		// direction := random_on_hemisphere(hit.normal)
 		// Lambertian Reflection
 		direction := hit.normal + random_unit_vector()
 
-		mut rc := c.ray_color(Ray{hit.p, direction}, world, depth - 1)
-		rc = rc.div(2.0)
+		//mut rc := c.ray_color(Ray{hit.p, direction}, world, depth - 1)
+		//rc = rc.div(2.0)
+
 		return rc
+		*/
+
+		// Material scattering
+		mut scattered := Ray{}
+		mut attenuation := Vec3{}
+		if hit.material.scatter(r, hit, mut attenuation, mut scattered) {
+			return attenuation * c.ray_color(scattered, world, depth - 1)
+		}
+		return Color{0,0,0}
 	}
 
 	unit_direction := r.dir.unit_vector()

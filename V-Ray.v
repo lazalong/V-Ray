@@ -2,7 +2,6 @@ import gg
 import gx
 import runtime
 import time
-import math
 
 const chunk_height = 10 // the image is recalculated in chunks, each chunk processed in a separate thread
 
@@ -70,8 +69,15 @@ fn main() {
 
 	// World
 	mut list := []Hitable{}
-	list << &Sphere{Vec3{0,0,-1}, 0.5}
-	list << &Sphere{Vec3{0,-100.5,-1}, 100}
+//	mat1 := &Lambertian{Vec3{0.5, 0.5, 0.5}}
+//	list << &Sphere{Vec3{0,0,-1}, 0.5, mat1}
+//	list << &Sphere{Vec3{0,-100.5,-1}, 100, mat1}
+//	mat1 := &Lambertian{Vec3{0.5, 0.5, 0.5}}
+
+	list << &Sphere{Vec3{ 0.0,-100.5, -1.0}, 100.0, &Lambertian{Vec3{0.8, 0.8, 0.0}}}
+	list << &Sphere{Vec3{ 0.0,   0.0, -1.2},   0.5, &Lambertian{Vec3{0.1, 0.2, 0.5}}}
+	list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.8, 0.8}}}
+	list << &Sphere{Vec3{ 1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.6, 0.2}}}
 	state.world.list = list
 
 	state.gg = gg.new_context(
@@ -145,6 +151,7 @@ fn (mut state AppState) update() {
 		for _ in 0 .. nchunks {
 			_ := <-chunk_ready_channel
 		}
+
 		// everything is done, swap the buffer pointers
 		state.pixels, state.npixels = state.npixels, state.pixels
 		println('${state.ntasks:2} threads; ${sw.elapsed().milliseconds():3} ms / frame; scale: ${state.scale:4}; nbchunks: ${nchunks}')
@@ -155,35 +162,6 @@ fn (mut state AppState) update() {
 @[direct_array_access]
 fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 
-/* mandelbrot
-	for {
-		chunk := <-input or { break }
-		yscale := chunk.cview.height() / pheight
-		xscale := chunk.cview.width() / pwidth
-		mut x, mut y, mut iter := 0.0, 0.0, 0
-		mut y0 := chunk.ymin * yscale + chunk.cview.y_min
-		mut x0 := chunk.cview.x_min
-		for y_pixel := chunk.ymin; y_pixel < chunk.ymax && y_pixel < pheight; y_pixel++ {
-			yrow := unsafe { &state.npixels[int(y_pixel * pwidth)] }
-			y0 += yscale
-			x0 = chunk.cview.x_min
-			for x_pixel := 0; x_pixel < pwidth; x_pixel++ {
-				x0 += xscale
-				x, y = x0, y0
-				for iter = 0; iter < max_iterations; iter++ {
-					x, y = x * x - y * y + x0, 2 * x * y + y0
-					if x * x + y * y > 4 {
-						break
-					}
-				}
-				unsafe {
-					yrow[x_pixel] = colors[iter & 15]
-				}
-			}
-		}
-		ready <- true
-	}
-*/
 	for {
 		chunk := <- input or { break }
 		
@@ -201,40 +179,12 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 					//g := f32(py) * 256.0 /(state.pheight -1)
 					//yrow[px] = u32(gx.rgb(u8(r),u8(g),0).abgr8())
 
-					// TODO : put in Camera??
-		/*			pixel_center := state.camera.pixel00_loc + 
-						state.camera.pixel_delta_u.mul(f32(px)) + state.camera.pixel_delta_v.mul(f32(py))
-					ray_direction := pixel_center - state.camera.center
-					r := Ray {
-						ori: state.camera.center
-						dir: ray_direction
-						}
-
-					// Get the color of the ray
-					yrow[px] = u32(state.camera.ray_color(r, state.world).abgr8())
-				*/
 				//	yrow[px] = state.camera.render_pixel(px, f32(py), state.world)
 					yrow[px] = state.camera.render_pixel_antialiased(px, f32(py), state.world)
 				}
 			}
 		}		
 		ready <- true
-	}
-}
-
-// TODO: Remove?
-fn hit_shpere(center Point3, radius f32, r Ray) f32 {
-	oc := center - r.ori
-	a := r.dir.length_squared()
-	h := r.dir.dot(oc)
-	c := oc.length_squared() - radius*radius
-
-	discriminant := h*h - a*c
-
-	if discriminant < 0 {
-		return -1.0
-	} else {
-		return (h - math.sqrtf(discriminant)) / a
 	}
 }
 

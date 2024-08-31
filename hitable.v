@@ -5,6 +5,7 @@ mut:
 	t			f32 		// hit if this value is in interval t_min and t_max
 	p			Point3
 	normal	Vec3
+	material IMaterial
 	front		bool 		// true if outside or front face
 }
 
@@ -18,6 +19,7 @@ fn new_hit_record() HitRecord {
 		0,
 		Point3{0,0,0},
 		Vec3{0,0,0},
+		&Lambertian{Vec3{0,0,0}}, // TODO ??? Adding this makes it that the code doesn't run so time in prod but work in debug...
 		true
 	}
 }

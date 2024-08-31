@@ -123,3 +123,9 @@ fn (mut v Vec3) clamp(min f32, max f32) {
 	if v.e2 < min { v.e2 = min }
 	else if v.e2 > max { v.e2 = max }
 }
+
+fn (v Vec3) is_near_zero() bool {
+	return (math.abs(v.e0) < 0.00000001)
+		&& (math.abs(v.e1) < 0.00000001)
+		&& (math.abs(v.e2) < 0.00000001)
+}

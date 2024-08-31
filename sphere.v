@@ -2,8 +2,9 @@ import math
 
 struct Sphere {
 mut:
-	center Point3
-	radius f32
+	center   Point3
+	radius   f32
+	material IMaterial
 }
 
 // Implements interface Hitable
@@ -34,6 +35,7 @@ fn (s Sphere) hit(r Ray, t_min f32, t_max f32, mut rec HitRecord) bool {
 	rec.p = r.at(rec.t)
 	outward_normal := (rec.p - s.center).div(s.radius)
 	rec.set_face_normal(r, outward_normal)
-
+	rec.material = s.material
+	
 	return true
 }
