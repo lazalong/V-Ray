@@ -127,13 +127,19 @@ fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
 		}
 		
 		rc := c.ray_color(r, world, c.max_depth)
-		color.e0 = color.x() + f32(rc.r)
-		color.e1 = color.y() + f32(rc.g)
-		color.e2 = color.z() + f32(rc.b)
+		color.e0 = color.r() + f32(rc.r)
+		color.e1 = color.g() + f32(rc.g)
+		color.e2 = color.b() + f32(rc.b)
 	}
 
 	color = color.mul(c.pixel_samples_scale) // aka  divide by nb samples of pixels
 
+	// Apply a linear to gamma transform for gamma 2
+	// TODO consider doing all calculation in float and convert to range [0,255] before return...
+	color.e0 = linear_to_gamma(color.e0 / 256.0) * 256.0
+	color.e1 = linear_to_gamma(color.e1 / 256.0) * 256.0
+	color.e2 = linear_to_gamma(color.e2 / 256.0) * 256.0
+
 	// Get the color of the ray
-   return u32(gx.rgb(u8(color.x()), u8(color.y()), u8(color.z())).abgr8())
+   return u32(gx.rgb(u8(color.r()), u8(color.g()), u8(color.b())).abgr8())
 }
