@@ -58,6 +58,10 @@ fn (v Vec3) length_squared() f32 {
 	return v.e0 * v.e0 + v.e1 * v.e1 + v.e2 * v.e2
 }
 
+fn (v Vec3) invert() Vec3 {
+	return Vec3{-v.e0, -v.e1, -v.e2}
+}
+
 fn (v1 Vec3) dot(v2 Vec3) f32 {
 	return v1.e0*v2.e0 + v1.e1*v2.e1 + v1.e2*v2.e2
 }

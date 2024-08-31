@@ -3,7 +3,7 @@
 
 Minimal V RayLib project using VScode, Gcc and Gdb
 
-![HelloDebug icon](HelloDebug.png)
+![Output for now](output.png)
 
 ## VSCode Installation & Setup of mingw
 
