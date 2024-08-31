@@ -59,14 +59,16 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 
 // Use .abgr8() to get the u32 color
 // TODO Return a Vec3/Color and only convert into gx.rgb at last moment
-fn (c Camera) ray_color(r Ray, world HitableList, depth int) gx.Color {
+fn (c Camera) ray_color(r Ray, world HitableList, depth int) Color {
 	// Exceeding ray bounce limit, no more light is gathered
 	if depth <= 0 {
-		return gx.rgb(0,0,0)
+		return Color{0,0,0}
 	}
 
 	mut hit := new_hit_record()
 	if world.hit(r, shadow_acne_problem, math.max_f32, mut hit) {
+
+		// return gx.rgb(50,60,0)
 
 		/*
 		// Returns simply a color depending on the normal
@@ -84,19 +86,16 @@ fn (c Camera) ray_color(r Ray, world HitableList, depth int) gx.Color {
 		direction := hit.normal + random_unit_vector()
 
 		mut rc := c.ray_color(Ray{hit.p, direction}, world, depth - 1)
-		// TODO: Better way to divide a rgb by 2 ??
-		rc.r -= rc.r / 2
-		rc.g -= rc.g / 2
-		rc.b -= rc.b / 2
+		rc = rc.div(2.0)
 		return rc
 	}
 
 	unit_direction := r.dir.unit_vector()
 	a := 0.5 * (unit_direction.y() + 1.0)
-	mut a1 := gx.rgb(u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a)), u8(255.0* (1.0 - a))) 
-	a1 += gx.rgb(u8(127.0 * a), u8(200.0 * a), u8(255.0 * a))
+
+	mut a1 := Color{1.0 - a, 1.0 - a, 1.0 - a}
+	a1 = a1 + Color{a*0.5, a*0.8, a} // TODO param bluish color. 
 	return a1
-//	return gx.rgb(50,60,0)
 }
 
 fn (c Camera) render_pixel(px f32, py f32, world HitableList) u32 {
@@ -109,7 +108,10 @@ fn (c Camera) render_pixel(px f32, py f32, world HitableList) u32 {
 	}
 
 	// Get the color of the ray
-   return u32(c.ray_color(r, world, c.max_depth).abgr8())
+	//   return u32(c.ray_color(r, world, c.max_depth).abgr8())
+	mut cc := c.ray_color(r, world, c.max_depth)
+	cc.clamp(0.0, 0.9999)
+   return u32(gx.rgb(u8(256.0* cc.r()), u8(256.0* cc.g()), u8(256.0* cc.b())).abgr8())
 }
 
 fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
@@ -126,20 +128,40 @@ fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
 			dir: ray_direction
 		}
 		
-		rc := c.ray_color(r, world, c.max_depth)
-		color.e0 = color.r() + f32(rc.r)
-		color.e1 = color.g() + f32(rc.g)
-		color.e2 = color.b() + f32(rc.b)
+		color = color + c.ray_color(r, world, c.max_depth)
 	}
 
 	color = color.mul(c.pixel_samples_scale) // aka  divide by nb samples of pixels
 
 	// Apply a linear to gamma transform for gamma 2
-	// TODO consider doing all calculation in float and convert to range [0,255] before return...
-	color.e0 = linear_to_gamma(color.e0 / 256.0) * 256.0
-	color.e1 = linear_to_gamma(color.e1 / 256.0) * 256.0
-	color.e2 = linear_to_gamma(color.e2 / 256.0) * 256.0
+	color.linear_to_gamma()
 
-	// Get the color of the ray
-   return u32(gx.rgb(u8(color.r()), u8(color.g()), u8(color.b())).abgr8())
+	color.clamp(0.0, 0.9999)
+
+	// Get the color of the ray 
+	// TODO: Should we do this later so we can choose the format?
+   return u32(gx.rgb(u8(256.0* color.r()), u8(256.0* color.g()), u8(256.0* color.b())).abgr8())
+}
+
+// Used for simple gamma correction.
+// Almost all computer programs assume that an image is “gamma corrected”
+// before being written into an image file. This means that the 0 to 1 
+// values have some transform applied before being stored as a byte. 
+// Images with data that are written without being transformed are said
+// to be in linear space, whereas images that are transformed are said 
+// to be in gamma space. It is likely that the image viewer you are 
+// using is expecting an image in gamma space, but we are giving it 
+// an image in linear space. Without it the image appears 
+// inaccurately dark.
+fn linear_to_gamma(linear_component f32) f32 {
+	if linear_component > 0 {
+		return math.sqrtf(linear_component)
+	}
+	return 0
+}
+
+fn (mut v Vec3) linear_to_gamma() {
+	v.e0 = linear_to_gamma(v.e0)
+	v.e1 = linear_to_gamma(v.e1)
+	v.e2 = linear_to_gamma(v.e2)
 }

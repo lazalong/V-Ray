@@ -213,7 +213,7 @@ fn (mut state AppState) worker(id int, input chan ImageChunk, ready chan bool) {
 					// Get the color of the ray
 					yrow[px] = u32(state.camera.ray_color(r, state.world).abgr8())
 				*/
-//					yrow[px] = state.camera.render_pixel(px, f32(py), state.world)
+				//	yrow[px] = state.camera.render_pixel(px, f32(py), state.world)
 					yrow[px] = state.camera.render_pixel_antialiased(px, f32(py), state.world)
 				}
 			}

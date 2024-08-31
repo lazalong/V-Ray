@@ -9,6 +9,7 @@ mut:
 }
 
 type Point3 = Vec3
+type Color = Vec3
 
 fn (v Vec3) x() f32 { return v.e0 }
 fn (v Vec3) y() f32 { return v.e1 }
@@ -112,4 +113,13 @@ fn random_on_hemisphere(normal Vec3) Vec3 {
 // Returns a Vec3 to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
 fn sample_square() Vec3 {
 	return Vec3{rand_min_max(-0.5, 0.5), rand_min_max(-0.5, 0.5), 0}
+}
+
+fn (mut v Vec3) clamp(min f32, max f32) {
+	if v.e0 < min { v.e0 = min }
+	else if v.e0 > max { v.e0 = max }
+	if v.e1 < min { v.e1 = min }
+	else if v.e1 > max { v.e1 = max }
+	if v.e2 < min { v.e2 = min }
+	else if v.e2 > max { v.e2 = max }
 }
