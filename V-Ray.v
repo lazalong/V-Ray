@@ -76,8 +76,8 @@ fn main() {
 
 	list << &Sphere{Vec3{ 0.0,-100.5, -1.0}, 100.0, &Lambertian{Vec3{0.8, 0.8, 0.0}}}
 	list << &Sphere{Vec3{ 0.0,   0.0, -1.2},   0.5, &Lambertian{Vec3{0.1, 0.2, 0.5}}}
-	list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.8, 0.8}}}
-	list << &Sphere{Vec3{ 1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.6, 0.2}}}
+	list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.8, 0.8}, 0.3}}
+	list << &Sphere{Vec3{ 1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.6, 0.2}, 1.0}}
 	state.world.list = list
 
 	state.gg = gg.new_context(
