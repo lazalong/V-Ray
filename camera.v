@@ -1,6 +1,24 @@
 import math
 import gx
 
+// From https://raytracing.github.io/books/RayTracingInOneWeekend.html
+//
+// Note: Defocus blur in raytracing is called by photographers as depth of field!
+//
+// The reason we have defocus blur in real cameras is because they need a big hole
+// (rather than just a pinhole) through which to gather light. A large hole would defocus 
+// everything, but if we stick a lens in front of the film/sensor, there will be a certain 
+// distance at which everything is in focus. Objects placed at that distance will appear 
+// in focus and will linearly appear blurrier the further they are from that distance. 
+// You can think of a lens this way: all light rays coming from a specific point 
+// at the focus distance — and that hit the lens — will be bent back to a single point 
+// on the image sensor.
+// The “aperture” is a hole to control how big the lens is effectively. 
+// For a real camera, if you need more light you make the aperture bigger, 
+// and will get more blur for objects away from the focus distance. 
+// For our virtual camera, we can have a perfect sensor and never need more light, 
+// so we only use an aperture when we want defocus blur.
+
 struct Camera {
 pub mut:
 	aspect_ratio f32        = 16.0 / 9.0     // Ratio of image width over height
@@ -12,6 +30,8 @@ pub mut:
 	look_from Point3        = Point3{}       // Point camera is looking from
 	look_at   Point3        = Point3{0,0,-1} // Point camera is looking at
 	vup       Vec3          = Vec3{0,1,0}    // Camera-relative 'up' direction
+	defocus_angle f32                        // Variation angle of rays through each pixel
+	focus_distance f32      = 10             // Distance from camera lookfrom point to plane of perfect focus
 
 mut:
 	pheight int             = int(800.0 * 9.0 / 16.0)
@@ -22,11 +42,14 @@ mut:
 	pixel_samples_scale f32 = f32(1.0 / samples_per_pixel)
 	u Vec3                  = Vec3{}         // Camera frame basis vectors
 	v Vec3                  = Vec3{}
-	w Vec3                  = Vec3{} 
+	w Vec3                  = Vec3{}
+	defocus_disk_u Vec3     = Vec3{}         // Defocus disk horizontal radius
+   defocus_disk_v Vec3     = Vec3{}         // Defocus disk vertical radius
 }
 
 fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
-	max_depth int, vfov f32, look_from Vec3, look_at Vec3, vup Vec3) Camera {
+	max_depth int, vfov f32, look_from Vec3, look_at Vec3, vup Vec3,
+	defocus_angle f32, focus_distance f32) Camera {
 
 	mut pheight := int(pwidth / aspect_ratio)
 	if pheight < 1 {
@@ -34,11 +57,14 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 	}
 
 	// Determine viewport dimensions
-	focal_length := (look_from - look_at).length()
+	// The focal length is the distance between the camera center and the image plane.
+	//  (aka focal_length := (look_from - look_at).length())
+	// The focal distance is the distance between the center and the plane where everything is in perfect focus
+	// For this camera, we will put the pixel grid right on the focus plane (at focal distance)
 	theta := vfov * math.pi/180.0
 	half_height := math.tan(theta/2.0)
 
-	viewport_height := f32(2.0 * half_height * focal_length)
+	viewport_height := f32(2.0 * half_height * focus_distance)
 	viewport_width := viewport_height * f32(pwidth) / f32(pheight)
 
 	// Calculate the u,v,w unit basis vectors for the camera coordinate frame.
@@ -55,8 +81,13 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 	pixel_delta_v := viewport_v.div(pheight)
 
 	// Calculate the location of the upper left pixel.
-	viewport_upper_left := look_from - w.mul(focal_length) - viewport_u.div(2) - viewport_v.div(2)
+	viewport_upper_left := look_from - w.mul(focus_distance) - viewport_u.div(2) - viewport_v.div(2)
 	pixel00_loc := viewport_upper_left + (pixel_delta_u + pixel_delta_v).mul(0.5)
+
+	// Calculate the camera defocus disk basis vectors
+	defocus_radius := f32(focus_distance * math.tan(angle_to_radian(defocus_angle * 0.5)))
+	defocus_disk_u := u.mul(defocus_radius)
+	defocus_disk_v := v.mul(defocus_radius)
 
 	return Camera {
 		aspect_ratio,
@@ -67,6 +98,8 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 		look_from,
 		look_at,
 		vup,
+		defocus_angle, 
+		focus_distance
 
 		pheight,
 		look_from,
@@ -76,7 +109,9 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 		1.0 / samples_per_pixel,
 		u,
 		v,
-		w
+		w,
+		defocus_disk_u,
+		defocus_disk_v
 	}
 }
 
@@ -156,9 +191,11 @@ fn (c Camera) render_pixel_antialiased(px f32, py f32, world HitableList) u32 {
 		pixel_center := c.pixel00_loc + 
 			c.pixel_delta_u.mul(f32(px) + offset.x()) + c.pixel_delta_v.mul(f32(py) + offset.y())
 		
-		ray_direction := pixel_center - c.center
+		mut ray_origin := if c.defocus_angle <= 0 { c.center } else { c.defocus_disk_sample()	}
+
+		ray_direction := pixel_center - ray_origin
 		r := Ray {
-			ori: c.center
+			ori: ray_origin
 			dir: ray_direction
 		}
 		
@@ -198,4 +235,9 @@ fn (mut v Vec3) linear_to_gamma() {
 	v.e0 = linear_to_gamma(v.e0)
 	v.e1 = linear_to_gamma(v.e1)
 	v.e2 = linear_to_gamma(v.e2)
+}
+
+fn (c Camera) defocus_disk_sample() Point3 {
+	p := random_in_unit_disk()
+	return c.center + c.defocus_disk_u.mul(p.e0) + c.defocus_disk_v.mul(p.e1)
 }

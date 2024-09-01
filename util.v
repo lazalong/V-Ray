@@ -20,3 +20,7 @@ fn hit_shpere(center Point3, radius f32, r Ray) f32 {
 		return (h - math.sqrtf(discriminant)) / a
 	}
 }
+
+fn angle_to_radian(degree f32) f32 {
+	return f32(degree * math.pi / 180.0)
+}

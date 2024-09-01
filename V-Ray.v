@@ -2,6 +2,7 @@ import gg
 import gx
 import runtime
 import time
+import rand
 
 const chunk_height = 10 // the image is recalculated in chunks, each chunk processed in a separate thread
 
@@ -58,30 +59,22 @@ struct ImageChunk {
 fn main() {
 
 	// Camera
-	mut camera := new_camera(16.0 / 9.0, 800, 10.0, 50, 20, 
-//		Vec3{0,0,0}, Vec3{0,0,-1}, Vec3{0,1,0})
-		Vec3{-2,2,1}, Vec3{0,0,-1}, Vec3{0,1,0})
+	mut camera := new_camera(16.0 / 9.0, 400, 10.0, 50, 20, 
+//		Vec3{0,0,0}, Vec3{0,0,-1}, Vec3{0,1,0}), 10, 3.4
+		Vec3{-2,2,1}, Vec3{0,0,-1}, Vec3{0,1,0}, 10, 3.4 // simple scene
+//		Vec3{12,2,3}, Vec3{0,0,0}, Vec3{0,1,0}, 0.6, 10  // random sphere scene
+		)
 
 	// State
 	mut state := &AppState{}
 	state.camera = camera
 
-	state.pixels     	= unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) }
-	state.npixels     = unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
+	state.pixels  = unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) }
+	state.npixels = unsafe { vcalloc(camera.pwidth * camera.pheight * sizeof(u32)) } // all drawing happens here, results are swapped at the end
 
 	// World
-	mut list := []Hitable{}
-//	mat1 := &Lambertian{Vec3{0.5, 0.5, 0.5}}
-//	list << &Sphere{Vec3{0,0,-1}, 0.5, mat1}
-//	list << &Sphere{Vec3{0,-100.5,-1}, 100, mat1}
-//	mat1 := &Lambertian{Vec3{0.5, 0.5, 0.5}}
-
-	list << &Sphere{Vec3{ 0.0,-100.5, -1.0}, 100.0, &Lambertian{Vec3{0.8, 0.8, 0.0}}}
-	list << &Sphere{Vec3{ 0.0,   0.0, -1.2},   0.5, &Lambertian{Vec3{0.1, 0.2, 0.5}}}
-	list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.5, &Dialectric{1.5}}
-	list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.4, &Dialectric{1.0/1.5}}
-	list << &Sphere{Vec3{ 1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.6, 0.2}, 1.0}}
-	state.world.list = list
+	create_simple_scene(mut state.world)
+//	create_random_spheres_scene(mut state.world)
 
 	state.gg = gg.new_context(
 		width:         800 // TODO 
@@ -104,6 +97,51 @@ fn main() {
 
 	// clean
 	state.gg.remove_cached_image_by_idx(state.iidx)
+}
+
+// Camera Vec3{-2,2,1}, Vec3{0,0,-1}, Vec3{0,1,0}, 10, 3.4 // simple scene
+fn create_simple_scene(mut world HitableList) {
+	world.list << &Sphere{Vec3{ 0.0,-100.5, -1.0}, 100.0, &Lambertian{Vec3{0.8, 0.8, 0.0}}}
+	world.list << &Sphere{Vec3{ 0.0,   0.0, -1.2},   0.5, &Lambertian{Vec3{0.1, 0.2, 0.5}}}
+	world.list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.5, &Dialectric{1.5}}
+	world.list << &Sphere{Vec3{-1.0,   0.0, -1.0},   0.4, &Dialectric{1.0/1.5}}
+	world.list << &Sphere{Vec3{ 1.0,   0.0, -1.0},   0.5, &Metal{Vec3{0.8, 0.6, 0.2}, 1.0}}
+}
+
+// camera.defocus_angle = 0.6
+// camera.focus_distance = 10 
+// look_from = Point3{13,2,3}
+// look_at = Point3{0,0,0}
+fn create_random_spheres_scene(mut world HitableList) {
+
+	ground_material := Lambertian{Color{0.5, 0.5, 0.5}}
+	world.list << &Sphere{Vec3{ 0.0,-1000.0, 0.0}, 1000.0, ground_material}
+
+	for x := -11; x < 11; x++ {
+		for y := -11; y < 11; y++ {
+			mat := rand.f32()
+			pos := Vec3{0.9*rand.f32() + x, 0.2, 0.9*rand.f32() + y}
+
+			if (pos - Point3{4, 0.2, 0}).length() > 0.9 {
+				if mat < 0.8 {
+					// Diffuse
+					world.list << &Sphere{pos, 0.2, 
+						&Lambertian{Vec3{rand.f32(), rand.f32(), rand.f32()}}}
+				} else if mat < 0.95 {
+					// Metal
+					world.list << &Sphere{pos, 0.2, 
+						&Metal{Color{rand_min_max(0.5,1), rand_min_max(0.5,1), rand_min_max(0.5,1)}, rand_min_max(0,0.5)}}
+				} else {
+					// Glass
+					world.list << &Sphere{pos, 0.2, &Dialectric{1.5}}
+				}
+			}
+		}
+	}
+
+	world.list << &Sphere{Vec3{ 0.0,   1.0,  0.0},   1.0, &Dialectric{1.5}}
+	world.list << &Sphere{Vec3{-4.0,   1.0,  0.0},   1.0, &Lambertian{Color{0.4, 0.2, 0.1}}}
+	world.list << &Sphere{Vec3{ 4.0,   1.0,  0.0},   1.0, &Metal{Color{0.7, 0.6, 0.5}, 0.0}}
 }
 
 fn (mut state AppState) draw() {

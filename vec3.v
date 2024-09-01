@@ -99,6 +99,18 @@ fn random_in_unit_sphere() Vec3 {
 	return v
 }
 
+fn random_in_unit_disk() Vec3 {
+	mut p := Vec3{}
+	for {
+		p.e0 = rand_min_max(-1,1)
+		p.e1 = rand_min_max(-1,1)
+		if p.length_squared() < 1 {
+			break
+		}
+	}
+	return p
+}
+
 fn random_unit_vector() Vec3 {
 	return random_in_unit_sphere().unit_vector()
 }
