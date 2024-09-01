@@ -3,10 +3,16 @@ import gx
 
 struct Camera {
 pub mut:
-	aspect_ratio f32        = 16.0 / 9.0   // Ratio of image width over height
-	pwidth  int             = 800          // Rendered image width in pixel count
-	samples_per_pixel f32   = 10           // Count of random samples for each pixel
-	max_depth int           = 10           // Maximum nb of ray bounces into scene
+	aspect_ratio f32        = 16.0 / 9.0     // Ratio of image width over height
+	pwidth  int             = 800            // Rendered image width in pixel count
+	samples_per_pixel f32   = 10             // Count of random samples for each pixel
+	max_depth int           = 10             // Maximum nb of ray bounces into scene
+	vfov f32                = 90             // Field of view [degree convereted in radian] - visual angle from edge to edge of rendered image. Since our image is not square, the fov is different horizontally and vertically.
+
+	look_from Point3        = Point3{}       // Point camera is looking from
+	look_at   Point3        = Point3{0,0,-1} // Point camera is looking at
+	vup       Vec3          = Vec3{0,1,0}    // Camera-relative 'up' direction
+
 mut:
 	pheight int             = int(800.0 * 9.0 / 16.0)
 	center Vec3             = Vec3{0,0,0}
@@ -14,33 +20,42 @@ mut:
 	pixel_delta_u Vec3      = Vec3{0,0,0}
 	pixel_delta_v Vec3      = Vec3{0,0,0}
 	pixel_samples_scale f32 = f32(1.0 / samples_per_pixel)
+	u Vec3                  = Vec3{}         // Camera frame basis vectors
+	v Vec3                  = Vec3{}
+	w Vec3                  = Vec3{} 
 }
 
 fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
-	max_depth int) Camera {
+	max_depth int, vfov f32, look_from Vec3, look_at Vec3, vup Vec3) Camera {
 
 	mut pheight := int(pwidth / aspect_ratio)
 	if pheight < 1 {
 		pheight = 1
 	}
 
-	center := Vec3{0,0,0} // TODO pass as paramter?
-
 	// Determine viewport dimensions
-	focal_length := f32(1.0)
-	viewport_height := f32(2.0)
+	focal_length := (look_from - look_at).length()
+	theta := vfov * math.pi/180.0
+	half_height := math.tan(theta/2.0)
+
+	viewport_height := f32(2.0 * half_height * focal_length)
 	viewport_width := viewport_height * f32(pwidth) / f32(pheight)
 
+	// Calculate the u,v,w unit basis vectors for the camera coordinate frame.
+	w := (look_from - look_at).unit_vector()
+	u := vup.cross(w).unit_vector()
+	v := w.cross(u)
+
 	// Calculate the vectors across the horizontal and down the vertical viewport edges.
-	viewport_u := Vec3{viewport_width, 0, 0}
-	viewport_v := Vec3{0, -viewport_height, 0}
+	viewport_u := u.mul(viewport_width)   // Vector across viewport horizontal edge
+	viewport_v := v.mul(-viewport_height) // Vector down viewport vertical edge
 
 	// Calculate the horizontal and vertical delta vectors from pixel to pixel.
 	pixel_delta_u := viewport_u.div(pwidth)
 	pixel_delta_v := viewport_v.div(pheight)
 
 	// Calculate the location of the upper left pixel.
-	viewport_upper_left := center - Vec3{0.0, 0.0, focal_length} - viewport_u.div(2) - viewport_v.div(2)
+	viewport_upper_left := look_from - w.mul(focal_length) - viewport_u.div(2) - viewport_v.div(2)
 	pixel00_loc := viewport_upper_left + (pixel_delta_u + pixel_delta_v).mul(0.5)
 
 	return Camera {
@@ -48,12 +63,20 @@ fn new_camera(aspect_ratio f32, pwidth int, samples_per_pixel f32,
 		pwidth,
 		samples_per_pixel,
 		max_depth,
+		vfov,
+		look_from,
+		look_at,
+		vup,
+
 		pheight,
-		center,
+		look_from,
 		pixel00_loc,
 		pixel_delta_u,
 		pixel_delta_v,
-		1.0 / samples_per_pixel 
+		1.0 / samples_per_pixel,
+		u,
+		v,
+		w
 	}
 }
 

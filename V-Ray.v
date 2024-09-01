@@ -58,7 +58,9 @@ struct ImageChunk {
 fn main() {
 
 	// Camera
-	camera := new_camera(16.0 / 9.0, 800, 10.0, 50)
+	mut camera := new_camera(16.0 / 9.0, 800, 10.0, 50, 20, 
+//		Vec3{0,0,0}, Vec3{0,0,-1}, Vec3{0,1,0})
+		Vec3{-2,2,1}, Vec3{0,0,-1}, Vec3{0,1,0})
 
 	// State
 	mut state := &AppState{}

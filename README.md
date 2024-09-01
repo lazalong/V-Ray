@@ -5,6 +5,8 @@ Minimal V RayLib project using VScode, Gcc and Gdb
 
 ![Output for now](output.png)
 
+Note that the image represents the output for the latest commit.  If you want to see how the code follows the Ray Tracing In One Weekend code then check the previous commit to see the changes.
+
 ## VSCode Installation & Setup of mingw
 
 Inspirations:
