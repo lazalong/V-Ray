@@ -1,5 +1,5 @@
 
-# V Ray
+# vray
 
 Minimal V RayLib project using VScode, Gcc and Gdb
 
